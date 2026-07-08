@@ -17,10 +17,12 @@ import SmowlMonitor from '../components/SmowlMonitor'
 import styles from './ExamPage.module.css'
 
 const DEMO_EXAM = {
-  id:       'EXAMDEMO001',
-  courseId: 'CURSODEMO001',
-  type:     'quiz',
-  title:    'Evaluacion de Prueba SMOWL',
+  id: '32422',
+  activityModule: '1216437',
+  activityContainerId: '2612',
+  courseId: '2612',
+  type: 'quiz',
+  title: 'Evaluacion de Prueba SMOWL',
   duration: 30,
   questions: [
     {

@@ -1,0 +1,1087 @@
+================================ 
+ARCHIVOS RAIZ 
+================================ 
+.env
+.env.example
+.gitignore
+index.html
+localhost-key.pem
+localhost.pem
+package-lock.json
+package.json
+README.md
+smowl_context_limpio.txt
+vite.config.js
+ 
+================================ 
+ESTRUCTURA SRC 
+================================ 
+Listado de rutas de carpetas para el volumen Acer
+El n�mero de serie del volumen es 0000021B 301B:3346
+C:\USERS\PREDATOR\DESKTOP\DOCUMENTOS ALBERTO\SMOWL-FINAL\SRC
+|   App.jsx
+|   main.jsx
+|   
++---components
+|       SmowlMonitor.jsx
+|       SmowlMonitor.module.css
+|       SmowlReports.jsx
+|       SmowlReports.module.css
+|       
++---context
+|       AuthContext.jsx
+|       SmowlContext.jsx
+|       
++---pages
+|       ExamPage.jsx
+|       ExamPage.module.css
+|       LoginPage.jsx
+|       LoginPage.module.css
+|       ReportPage.jsx
+|       ReportPage.module.css
+|       
++---services
+|       smowlService.js
+|       
++---styles
+|       global.css
+|       
+\---{components,pages,services,hooks,context,assets}
+ 
+================================ 
+package.json 
+================================ 
+{
+  "name": "smowl-proctoring-app",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "axios": "^1.6.7",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.22.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^8.1.3"
+  }
+}
+ 
+================================ 
+vite.config.js 
+================================ 
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import fs from 'fs'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5173,
+    host: true,
+    https: {
+      key: fs.readFileSync('./localhost-key.pem'),
+      cert: fs.readFileSync('./localhost.pem'),
+    },
+    allowedHosts: ['.trycloudflare.com', '.loca.lt', 'localhost'],
+    proxy: {
+      '/api/smowl': {
+        target: 'https://swl.smowltech.net',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/smowl/, ''),
+      }
+    }
+  }
+}) 
+================================ 
+src\App.jsx 
+================================ 
+import React from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import { SmowlProvider } from './context/SmowlContext'
+import LoginPage  from './pages/LoginPage'
+import ExamPage   from './pages/ExamPage'
+import ReportPage from './pages/ReportPage'
+
+function ProtectedRoute({ children }) {
+  const { isAuthenticated } = useAuth()
+  return isAuthenticated ? children : <Navigate to="/login" replace />
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <SmowlProvider>
+        <Routes>
+          <Route path="/"       element={<Navigate to="/login" replace />} />
+          <Route path="/login"  element={<LoginPage />} />
+          <Route path="/exam"   element={<ProtectedRoute><ExamPage /></ProtectedRoute>} />
+          <Route path="/report" element={<ProtectedRoute><ReportPage /></ProtectedRoute>} />
+          <Route path="*"       element={<Navigate to="/login" replace />} />
+        </Routes>
+      </SmowlProvider>
+    </AuthProvider>
+  )
+}
+ 
+================================ 
+src\main.jsx 
+================================ 
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
+import App from './App'
+import './styles/global.css'
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </React.StrictMode>
+)
+ 
+================================ 
+src\services\smowlService.js 
+================================ 
+// smowlService.js — Integración SMOWL COCORUNIAMERICANA
+// Flujo real: JWT { data:{...}, iat } → auth.smowltech.net → credenciales AWS
+
+export const AUTH_ENDPOINT    = 'https://auth.smowltech.net/v1/credentials'
+export const MONITOR_ENDPOINT = 'https://swl.smowltech.net/monitor/'
+
+export const ENTITY_NAME = 'COCORUNIAMERICANA'
+export const ENTITY_ID   = 3300
+export const LICENSE_KEY = '145af9ce639e7c3dcf93d6fbdabc5a249313778d'
+export const API_KEY     = '3ca32db2e6286ecbbc8a4ba6f4fb28c85d1c0f47'
+export const JWT_SECRET  = 'e011ef5bbb32387742c4c1b1189011231c72d7d4'
+export const DEFAULT_MODALITY_ID = 8844
+
+function b64url(str) {
+  return btoa(
+    Array.from(new TextEncoder().encode(str))
+      .map(b => String.fromCharCode(b))
+      .join('')
+  ).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+}
+
+function b64urlBytes(bytes) {
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+}
+
+export async function signJWT(payload) {
+  const header  = { typ: 'JWT', alg: 'HS256' }
+  const message = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}`
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(JWT_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message))
+  return `${message}.${b64urlBytes(new Uint8Array(sig))}`
+}
+
+export async function buildAuthToken({ userId, activityId, activityType, idModality }) {
+  return signJWT({
+    data: {
+      userId:        String(userId),
+      activityId:    String(activityId),
+      activityType:  String(activityType),
+      entityId:      ENTITY_ID,
+      swlLicenseKey: LICENSE_KEY,
+      entityName:    ENTITY_NAME,
+      idModality:    idModality || DEFAULT_MODALITY_ID,
+    },
+    iat: Math.floor(Date.now() / 1000),
+  })
+}
+
+export async function getCredentials(params) {
+  const token = await buildAuthToken(params)
+  const url = `${AUTH_ENDPOINT}?entityName=${encodeURIComponent(ENTITY_NAME)}`
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { 'Authorization': `Bearer ${token}`, 'Accept': '*/*' },
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }))
+    throw new Error(`Auth SMOWL (${res.status}): ${err.message || 'error'}`)
+  }
+  return res.json()
+}
+
+export async function buildMonitorUrl(params) {
+  const token = await buildAuthToken(params)
+  return `${MONITOR_ENDPOINT}?token=${token}&entityName=${encodeURIComponent(ENTITY_NAME)}`
+} 
+================================ 
+src\components\SmowlMonitor.jsx 
+================================ 
+/**
+ * SmowlMonitor.jsx
+ * ──────────────────────────────────────────────────────────────
+ * Componente que embebe el iframe de monitorización de SMOWL
+ * y escucha los eventos postMessage:
+ *   - monitoringstatusOK    → cámara y herramientas listas
+ *   - monitoringstatusNOTOK → algo falló (cámara desactivada, etc.)
+ *
+ * Tamaño oficial: 220x300px (según documentación SMOWL)
+ * ──────────────────────────────────────────────────────────────
+ */
+
+import React, { useEffect, useRef, useState } from 'react'
+import styles from './SmowlMonitor.module.css'
+
+/**
+ * @param {object}   props
+ * @param {string}   props.src          URL del iframe generada con buildMonitoringUrl()
+ * @param {function} props.onStatusOK   Llamado cuando monitoringstatusOK llega
+ * @param {function} props.onStatusNOTOK Llamado cuando monitoringstatusNOTOK llega
+ * @param {boolean}  props.isPreview    Si true, muestra badge "Verificando cámara"
+ */
+export default function SmowlMonitor({ src, onStatusOK, onStatusNOTOK, isPreview = false }) {
+  const [status,  setStatus]  = useState('loading')   // loading | ok | notok
+  const [loaded,  setLoaded]  = useState(false)
+  const iframeRef = useRef(null)
+
+  // Escuchar postMessage de SMOWL (sección 6.2 de la doc)
+  useEffect(() => {
+    function handleMessage(e) {
+      const msg = e.data || e.message
+      if (msg === 'monitoringstatusOK') {
+        setStatus('ok')
+        onStatusOK?.()
+      }
+      if (msg === 'monitoringstatusNOTOK') {
+        setStatus('notok')
+        onStatusNOTOK?.()
+      }
+    }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [onStatusOK, onStatusNOTOK])
+
+  if (!src) return null
+
+  return (
+    <div className={styles.wrapper}>
+      {/* Badge de estado */}
+      <div className={`${styles.statusBadge} ${styles[`badge_${status}`]}`}>
+        <span className={styles.dot} />
+        {status === 'loading' && 'Conectando…'}
+        {status === 'ok'      && (isPreview ? 'Cámara lista ✓' : 'Supervisión activa ✓')}
+        {status === 'notok'   && 'Cámara no disponible ⚠'}
+      </div>
+
+      {/* Skeleton mientras carga */}
+      {!loaded && <div className={styles.skeleton} />}
+
+      {/* iframe oficial SMOWL — atributos exactos de la documentación */}
+      <iframe
+        ref={iframeRef}
+        src={src}
+        allow="microphone; camera"
+        sandbox="allow-top-navigation allow-scripts allow-modals allow-same-origin allow-popups allow-downloads allow-popups-to-escape-sandbox"
+        width="220"
+        height="300"
+        frameBorder="0"
+        allowFullScreen
+        scrolling="no"
+        className={`${styles.iframe} ${loaded ? styles.iframeVisible : ''}`}
+        onLoad={() => setLoaded(true)}
+        title="SMOWL Supervisión"
+      />
+
+      {isPreview && status === 'notok' && (
+        <p className={styles.warning}>
+          Activa los permisos de cámara en tu navegador y recarga la página.
+        </p>
+      )}
+    </div>
+  )
+}
+ 
+================================ 
+src\components\SmowlReports.jsx 
+================================ 
+/**
+ * SmowlReports.jsx
+ * ──────────────────────────────────────────────────────────────
+ * Componente para los iframes de reportes de SMOWL.
+ * Usa postMessage para autenticar (secciones 7 y 8 de la doc).
+ *
+ * Dos modos:
+ *   mode="registers" → Gestión de usuarios registrados (VAR10)
+ *   mode="results"   → Informe de actividades (VAR10 + VAR13)
+ * ──────────────────────────────────────────────────────────────
+ */
+
+import React, { useEffect, useRef, useState } from 'react'
+import {
+  ENTITY_NAME, API_KEY,
+  buildANamesJson, buildActivitiesJson,
+} from '../services/smowlService'
+import styles from './SmowlReports.module.css'
+
+const REPORTS_URL = 'https://reports.smowltech.net/auth/'
+
+/**
+ * @param {object}  props
+ * @param {'registers'|'results'} props.mode
+ * @param {Array}   props.users       [{ id, name }]
+ * @param {Array}   [props.activities] [{ displayName, activityId, activityType }]
+ */
+export default function SmowlReports({ mode = 'registers', users = [], activities = [] }) {
+  const iframeRef = useRef(null)
+  const [loaded, setLoaded] = useState(false)
+
+  // Enviar postMessage cuando el iframe cargue (doc sección 7 y 8)
+  useEffect(() => {
+    if (!loaded || !iframeRef.current) return
+
+    const message = {
+      type:        'postAuthData',
+      entityName:  ENTITY_NAME,
+      apiKey:      API_KEY,
+      origin:      'lti',
+      courseUsers: buildANamesJson(users),
+      lang:        'es',
+      path:        mode === 'registers' ? '/registers' : '/results',
+    }
+
+    // Solo en modo "results" se envía la lista de actividades
+    if (mode === 'results') {
+      message.activities = buildActivitiesJson(activities)
+    }
+
+    setTimeout(() => {
+      iframeRef.current?.contentWindow?.postMessage(message, REPORTS_URL)
+    }, 500)
+  }, [loaded, mode, users, activities])
+
+  return (
+    <div className={styles.wrapper}>
+      {!loaded && (
+        <div className={styles.loading}>
+          <div className={styles.spinner} />
+          <span>Cargando reporte SMOWL…</span>
+        </div>
+      )}
+      <iframe
+        ref={iframeRef}
+        src={REPORTS_URL}
+        style={{ width: '100%', height: '100%', border: 'none', opacity: loaded ? 1 : 0 }}
+        title={mode === 'registers' ? 'SMOWL Gestión de usuarios' : 'SMOWL Informe de actividades'}
+        onLoad={() => setLoaded(true)}
+      />
+    </div>
+  )
+}
+ 
+================================ 
+src\context\AuthContext.jsx 
+================================ 
+/**
+ * AuthContext.jsx
+ * Gestiona el estado del usuario (login/logout) en la app de prueba.
+ * En producción esto lo reemplazarías con tu sistema de auth real
+ * (JWT, OAuth, SSO, etc.)
+ */
+
+import React, { createContext, useContext, useState, useCallback } from 'react'
+
+const AuthContext = createContext(null)
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(() => {
+    // Intentar recuperar usuario de sessionStorage al recargar
+    try {
+      const stored = sessionStorage.getItem('smowl_demo_user')
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  })
+
+  const login = useCallback((userData) => {
+    const userObj = {
+      id:        userData.id    || `USR-${Date.now()}`,
+      name:      userData.name,
+      email:     userData.email,
+      role:      userData.role  || 'student',
+      loginTime: new Date().toISOString(),
+    }
+    setUser(userObj)
+    sessionStorage.setItem('smowl_demo_user', JSON.stringify(userObj))
+  }, [])
+
+  const logout = useCallback(() => {
+    setUser(null)
+    sessionStorage.removeItem('smowl_demo_user')
+    sessionStorage.removeItem('smowl_active_session')
+  }, [])
+
+  return (
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth debe usarse dentro de <AuthProvider>')
+  return ctx
+}
+ 
+================================ 
+src\context\SmowlContext.jsx 
+================================ 
+import React, { createContext, useContext, useState, useCallback } from 'react'
+import { getCredentials, buildMonitorUrl } from '../services/smowlService'
+
+const SmowlContext = createContext(null)
+
+export function SmowlProvider({ children }) {
+  const [credentials,  setCredentials]  = useState(null)
+  const [monitorUrl,   setMonitorUrl]   = useState(null)
+  const [hexUserId,    setHexUserId]    = useState(null)
+  const [monitoringOK, setMonitoringOK] = useState(false)
+  const [loading,      setLoading]      = useState(false)
+  const [error,        setError]        = useState(null)
+
+  const prepareExam = useCallback(async (exam, user) => {
+    setLoading(true)
+    setError(null)
+    setMonitoringOK(false)
+    try {
+      const params = {
+        userId:       user.id,
+        activityId:   exam.id,
+        activityType: exam.type || 'quiz',
+        idModality:   exam.idModality,
+      }
+      const creds = await getCredentials(params)
+      setCredentials(creds.credentials)
+      setHexUserId(creds.hexUserId)
+      const url = await buildMonitorUrl(params)
+      setMonitorUrl(url)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const reset = useCallback(() => {
+    setCredentials(null)
+    setMonitorUrl(null)
+    setHexUserId(null)
+    setMonitoringOK(false)
+    setError(null)
+  }, [])
+
+  return (
+    <SmowlContext.Provider value={{
+      credentials, monitorUrl, hexUserId,
+      monitoringOK, setMonitoringOK,
+      loading, error, prepareExam, reset,
+    }}>
+      {children}
+    </SmowlContext.Provider>
+  )
+}
+
+export function useSmowl() {
+  const ctx = useContext(SmowlContext)
+  if (!ctx) throw new Error('useSmowl debe usarse dentro de <SmowlProvider>')
+  return ctx
+} 
+================================ 
+src\pages\ExamPage.jsx 
+================================ 
+/**
+ * ExamPage.jsx
+ * Flujo correcto según documentación SMOWL:
+ *
+ * FASE 1 — "setup":    Verifica cámara con isMonitoring=0 (previewUrl)
+ *                      Botón "Iniciar" desactivado hasta monitoringstatusOK
+ * FASE 2 — "active":   Examen + iframe isMonitoring=1 (monitoringUrl)
+ *                      Si monitoringstatusNOTOK llega → alerta al alumno
+ * FASE 3 — "done":     Va al reporte
+ */
+
+import React, { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { useSmowl } from '../context/SmowlContext'
+import SmowlMonitor from '../components/SmowlMonitor'
+import styles from './ExamPage.module.css'
+
+const DEMO_EXAM = {
+  id:       'EXAMDEMO001',
+  courseId: 'CURSODEMO001',
+  type:     'quiz',
+  title:    'Evaluacion de Prueba SMOWL',
+  duration: 30,
+  questions: [
+    {
+      id: 1,
+      text: '¿Cómo se llama el endpoint base de monitorización de SMOWL?',
+      options: [
+        'https://api.smowltech.net/v1/',
+        'https://app.smowltech.net/monitor/',
+        'https://smowl.net/api/monitor/',
+        'https://reports.smowltech.net/monitor/',
+      ],
+      correct: 1,
+    },
+    {
+      id: 2,
+      text: '¿Qué evento postMessage envía SMOWL cuando la cámara está lista?',
+      options: ['cameraReady', 'smowlOK', 'monitoringstatusOK', 'monitorReady'],
+      correct: 2,
+    },
+    {
+      id: 3,
+      text: '¿Qué valor tiene isMonitoring cuando NO se quieren capturar evidencias?',
+      options: ['null', 'false', '1', '0'],
+      correct: 3,
+    },
+  ],
+}
+
+export default function ExamPage() {
+  const { user } = useAuth()
+  const { monitoringUrl, previewUrl, registrationUrl, monitoringOK,
+          setMonitoringOK, loading, error, prepareExam, reset } = useSmowl()
+  const navigate = useNavigate()
+
+  const [phase,    setPhase]    = useState('setup')   // setup | active | done
+  const [answers,  setAnswers]  = useState({})
+  const [timeLeft, setTimeLeft] = useState(DEMO_EXAM.duration * 60)
+  const [expelled, setExpelled] = useState(false)
+
+  useEffect(() => {
+    if (!user) { navigate('/login', { replace: true }); return }
+    prepareExam(DEMO_EXAM, user)
+  }, []) // eslint-disable-line
+
+  // Timer
+  useEffect(() => {
+    if (phase !== 'active') return
+    if (timeLeft <= 0) { handleSubmit(); return }
+    const id = setInterval(() => setTimeLeft(t => t - 1), 1000)
+    return () => clearInterval(id)
+  }, [phase, timeLeft]) // eslint-disable-line
+
+  const fmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`
+
+  // monitoringstatusNOTOK durante el examen → expulsar
+  const handleMonitorNOTOK = useCallback(() => {
+    if (phase === 'active') setExpelled(true)
+  }, [phase])
+
+  const handleSubmit = useCallback(() => {
+    setPhase('done')
+    setTimeout(() => navigate('/report'), 800)
+  }, [navigate])
+
+  if (!user) return null
+
+  return (
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <div>
+          <span className={styles.examTitle}>{DEMO_EXAM.title}</span>
+          <span className={styles.userBadge}>👤 {user.name}</span>
+        </div>
+        {phase === 'active' && (
+          <div className={`${styles.timer} ${timeLeft < 120 ? styles.timerWarn : ''}`}>
+            ⏱ {fmt(timeLeft)}
+          </div>
+        )}
+      </header>
+
+      {/* Modal de expulsión */}
+      {expelled && (
+        <div className={styles.expelOverlay}>
+          <div className={styles.expelCard}>
+            <div className={styles.expelIcon}>⚠️</div>
+            <h2>Supervisión interrumpida</h2>
+            <p>La cámara o micrófono dejó de estar disponible. El examen ha sido pausado.</p>
+            <p>Reactiva los permisos en tu navegador y recarga la página para continuar.</p>
+            <button className={styles.expelBtn} onClick={() => window.location.reload()}>
+              Recargar página
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className={styles.layout}>
+        {/* ── Columna principal ── */}
+        <main className={styles.mainCol}>
+
+          {/* FASE SETUP: verificación de cámara */}
+          {phase === 'setup' && (
+            <div className={styles.setupCard}>
+              <h2 className={styles.setupTitle}>Verificación previa al examen</h2>
+              <p className={styles.setupDesc}>
+                SMOWL está verificando tu cámara y micrófono. El botón de inicio
+                se activará cuando todo esté listo.
+              </p>
+
+              <div className={styles.setupChecklist}>
+                {[
+                  'Cámara accesible y con buena iluminación',
+                  'Micrófono activo',
+                  'Estás solo en el espacio de trabajo',
+                  'Navegador sin pestañas adicionales abiertas',
+                ].map(item => (
+                  <div key={item} className={styles.checkItem}>
+                    <span className={`${styles.checkDot} ${monitoringOK ? styles.checkDotOK : ''}`} />
+                    {item}
+                  </div>
+                ))}
+              </div>
+
+              {error && (
+                <div className={styles.errorBanner}>
+                  <strong>Error al preparar SMOWL:</strong> {error}
+                </div>
+              )}
+
+              {registrationUrl && (
+                <p className={styles.registerHint}>
+                  ¿Primera vez?{' '}
+                  <a href={registrationUrl} target="_blank" rel="noreferrer">
+                    Regístrate en SMOWL primero →
+                  </a>
+                </p>
+              )}
+
+              <button
+                className={styles.startBtn}
+                disabled={!monitoringOK || loading}
+                onClick={() => setPhase('active')}
+              >
+                {loading
+                  ? <><span className={styles.spinner} /> Preparando…</>
+                  : monitoringOK
+                    ? 'Iniciar examen →'
+                    : 'Esperando verificación de cámara…'
+                }
+              </button>
+            </div>
+          )}
+
+          {/* FASE ACTIVE: preguntas */}
+          {phase === 'active' && (
+            <div className={styles.questionsWrap}>
+              <div className={styles.progressBar}>
+                <div
+                  className={styles.progressFill}
+                  style={{ width: `${Math.round((Object.keys(answers).length / DEMO_EXAM.questions.length) * 100)}%` }}
+                />
+              </div>
+              <p className={styles.progressLabel}>
+                {Object.keys(answers).length} de {DEMO_EXAM.questions.length} respondidas
+              </p>
+
+              {DEMO_EXAM.questions.map((q, i) => (
+                <div key={q.id} className={styles.questionCard}>
+                  <p className={styles.questionNum}>Pregunta {i + 1}</p>
+                  <p className={styles.questionText}>{q.text}</p>
+                  <div className={styles.options}>
+                    {q.options.map((opt, j) => (
+                      <label key={j} className={`${styles.option} ${answers[q.id] === j ? styles.optionSel : ''}`}>
+                        <input
+                          type="radio"
+                          name={`q-${q.id}`}
+                          checked={answers[q.id] === j}
+                          onChange={() => setAnswers(p => ({ ...p, [q.id]: j }))}
+                          className={styles.srOnly}
+                        />
+                        <span className={styles.optLetter}>{String.fromCharCode(65+j)}</span>
+                        {opt}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              <button
+                className={styles.submitBtn}
+                onClick={handleSubmit}
+                disabled={Object.keys(answers).length < DEMO_EXAM.questions.length}
+              >
+                {Object.keys(answers).length < DEMO_EXAM.questions.length
+                  ? `Responde todas (${DEMO_EXAM.questions.length - Object.keys(answers).length} pendientes)`
+                  : 'Finalizar y enviar →'}
+              </button>
+            </div>
+          )}
+
+          {phase === 'done' && (
+            <div className={styles.doneCard}>
+              <div className={styles.doneSpinner} />
+              <p>Finalizando sesión de proctoring…</p>
+            </div>
+          )}
+        </main>
+
+        {/* ── Columna lateral: iframe SMOWL ── */}
+        <aside className={styles.sideCol}>
+          <div className={styles.widgetHeader}>
+            {phase === 'setup' ? (
+              <span className={styles.verifyTag}>🔍 Verificando cámara</span>
+            ) : (
+              <span className={styles.liveTag}>● EN VIVO</span>
+            )}
+            <span className={styles.widgetLabel}>Supervisión SMOWL</span>
+          </div>
+
+          {/* Fase setup → previewUrl (isMonitoring=0, sin captura) */}
+          {phase === 'setup' && previewUrl && (
+            <SmowlMonitor
+              src={previewUrl}
+              isPreview={true}
+              onStatusOK={() => setMonitoringOK(true)}
+              onStatusNOTOK={() => setMonitoringOK(false)}
+            />
+          )}
+
+          {/* Fase active → monitoringUrl (isMonitoring=1, captura activa) */}
+          {phase === 'active' && monitoringUrl && (
+            <SmowlMonitor
+              src={monitoringUrl}
+              isPreview={false}
+              onStatusOK={() => setMonitoringOK(true)}
+              onStatusNOTOK={handleMonitorNOTOK}
+            />
+          )}
+
+          {loading && !previewUrl && (
+            <div className={styles.widgetLoading}>
+              <div className={styles.spinner} />
+              <span>Generando token JWT…</span>
+            </div>
+          )}
+
+          <p className={styles.smowlNote}>
+            220×300px — tamaño oficial SMOWL
+          </p>
+        </aside>
+      </div>
+    </div>
+  )
+}
+ 
+================================ 
+src\pages\LoginPage.jsx 
+================================ 
+import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import styles from './LoginPage.module.css'
+
+// Usuarios de demo para facilitar pruebas
+const DEMO_USERS = [
+  { id: 'STU001', name: 'AnaGarciaLopez',    email: 'ana.garcia@americana.edu.co' },
+  { id: 'STU002', name: 'CarlosMejiaTorres', email: 'carlos.mejia@americana.edu.co' },
+  { id: 'STU003', name: 'ValentinaRuizMora', email: 'val.ruiz@americana.edu.co' },
+]
+
+export default function LoginPage() {
+  const { login } = useAuth()
+  const navigate   = useNavigate()
+
+  const [form, setForm]     = useState({ name: '', email: '', id: '' })
+  const [errors, setErrors] = useState({})
+  const [loading, setLoading] = useState(false)
+
+  const validate = () => {
+    const e = {}
+    if (!form.name.trim())  e.name  = 'El nombre es obligatorio'
+    if (!form.email.trim()) e.email = 'El correo es obligatorio'
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Correo inválido'
+    if (!form.id.trim())    e.id    = 'El ID de estudiante es obligatorio'
+    return e
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    const errs = validate()
+    if (Object.keys(errs).length) { setErrors(errs); return }
+
+    setLoading(true)
+    // Simular pequeño delay de autenticación
+    await new Promise(r => setTimeout(r, 600))
+    login({ id: form.id, name: form.name, email: form.email })
+    navigate('/exam')
+  }
+
+  const fillDemo = (user) => {
+    setForm({ id: user.id, name: user.name, email: user.email })
+    setErrors({})
+  }
+
+  return (
+    <div className={styles.page}>
+      {/* Panel izquierdo — identidad visual */}
+      <aside className={styles.hero}>
+        <div className={styles.heroInner}>
+          <div className={styles.badge}>DEMO</div>
+          <h1 className={styles.heroTitle}>
+            Evaluación<br />con Proctoring
+          </h1>
+          <p className={styles.heroSub}>
+            Integración SMOWL · React + Vite
+          </p>
+          <div className={styles.features}>
+            {['Autenticación facial', 'Monitoreo de cámara', 'Control de aplicaciones', 'Reporte automático'].map(f => (
+              <div key={f} className={styles.featureItem}>
+                <span className={styles.featureDot} />
+                {f}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className={styles.heroPattern} aria-hidden="true" />
+      </aside>
+
+      {/* Panel derecho — formulario */}
+      <main className={styles.formPanel}>
+        <div className={styles.formCard}>
+          <div className={styles.formHeader}>
+            <h2 className={styles.formTitle}>Acceder al examen</h2>
+            <p className={styles.formDesc}>Ingresa tus datos para continuar</p>
+          </div>
+
+          {/* Acceso rápido con usuarios demo */}
+          <div className={styles.demoSection}>
+            <span className={styles.demoLabel}>Acceso rápido (demo)</span>
+            <div className={styles.demoButtons}>
+              {DEMO_USERS.map(u => (
+                <button
+                  key={u.id}
+                  type="button"
+                  className={styles.demoBtn}
+                  onClick={() => fillDemo(u)}
+                >
+                  {u.name.split(' ')[0]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className={styles.form} noValidate>
+            <div className={styles.field}>
+              <label htmlFor="student-id" className={styles.label}>ID de estudiante</label>
+              <input
+                id="student-id"
+                type="text"
+                className={`${styles.input} ${errors.id ? styles.inputError : ''}`}
+                placeholder="Ej: STU-001"
+                value={form.id}
+                onChange={e => setForm(p => ({ ...p, id: e.target.value }))}
+              />
+              {errors.id && <span className={styles.errorMsg}>{errors.id}</span>}
+            </div>
+
+            <div className={styles.field}>
+              <label htmlFor="full-name" className={styles.label}>Nombre completo</label>
+              <input
+                id="full-name"
+                type="text"
+                className={`${styles.input} ${errors.name ? styles.inputError : ''}`}
+                placeholder="Ej: Ana García López"
+                value={form.name}
+                onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+              />
+              {errors.name && <span className={styles.errorMsg}>{errors.name}</span>}
+            </div>
+
+            <div className={styles.field}>
+              <label htmlFor="email" className={styles.label}>Correo institucional</label>
+              <input
+                id="email"
+                type="email"
+                className={`${styles.input} ${errors.email ? styles.inputError : ''}`}
+                placeholder="Ej: ana.garcia@universidad.edu"
+                value={form.email}
+                onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+              />
+              {errors.email && <span className={styles.errorMsg}>{errors.email}</span>}
+            </div>
+
+            <button type="submit" className={styles.submitBtn} disabled={loading}>
+              {loading
+                ? <><span className={styles.spinner} /> Verificando...</>
+                : 'Ingresar al examen →'
+              }
+            </button>
+          </form>
+
+          <p className={styles.footer}>
+            Al continuar aceptas que SMOWL activará la supervisión de cámara y actividad durante el examen.
+          </p>
+        </div>
+      </main>
+    </div>
+  )
+}
+ 
+================================ 
+src\pages\ReportPage.jsx 
+================================ 
+/**
+ * ReportPage.jsx
+ * Muestra el informe de actividades de SMOWL vía iframe con postMessage.
+ * También permite ver el registro de usuarios.
+ */
+
+import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { useSmowl } from '../context/SmowlContext'
+import SmowlReports from '../components/SmowlReports'
+import styles from './ReportPage.module.css'
+
+// Actividades de demo para VAR13
+const DEMO_ACTIVITIES = [
+  { displayName: 'Evaluación de Prueba SMOWL', activityId: 'EXAM-DEMO-001', activityType: 'quiz' },
+]
+
+export default function ReportPage() {
+  const { user, logout } = useAuth()
+  const { reset } = useSmowl()
+  const navigate   = useNavigate()
+  const [tab, setTab] = useState('results')  // 'results' | 'registers'
+
+  const handleNewExam = () => { reset(); navigate('/exam') }
+  const handleLogout  = () => { reset(); logout(); navigate('/login') }
+
+  const demoUsers = user
+    ? [{ id: user.id, name: user.name }]
+    : []
+
+  return (
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <div className={styles.headerLeft}>
+          <span className={styles.logo}>SMOWL · COCORUNIAMERICANA</span>
+          {user && <span className={styles.userChip}>👤 {user.name}</span>}
+        </div>
+        <button className={styles.logoutBtn} onClick={handleLogout}>Salir</button>
+      </header>
+
+      <div className={styles.content}>
+        <div className={styles.topRow}>
+          <div>
+            <h1 className={styles.pageTitle}>Reportes de supervisión</h1>
+            <p className={styles.pageDesc}>
+              Los informes se cargan directamente desde SMOWL vía iframe autenticado.
+            </p>
+          </div>
+          <button className={styles.newExamBtn} onClick={handleNewExam}>
+            ← Nuevo examen
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className={styles.tabs}>
+          <button
+            className={`${styles.tab} ${tab === 'results'   ? styles.tabActive : ''}`}
+            onClick={() => setTab('results')}
+          >
+            📊 Informe de actividades
+          </button>
+          <button
+            className={`${styles.tab} ${tab === 'registers' ? styles.tabActive : ''}`}
+            onClick={() => setTab('registers')}
+          >
+            👥 Gestión de usuarios
+          </button>
+        </div>
+
+        {/* Iframe de reportes SMOWL */}
+        <div className={styles.iframeWrapper}>
+          <SmowlReports
+            key={tab}                     // re-monta al cambiar de tab
+            mode={tab}
+            users={demoUsers}
+            activities={DEMO_ACTIVITIES}
+          />
+        </div>
+
+        <p className={styles.note}>
+          Los reportes se cargan desde <code>https://reports.smowltech.net</code> usando
+          tu API Key de COCORUNIAMERICANA. Si ves una pantalla vacía, confirma que el
+          usuario realizó el examen con SMOWL activo y que el <code>userId</code> coincide.
+        </p>
+      </div>
+    </div>
+  )
+}
+ 
+================================ 
+.env.example 
+================================ 
+# ============================================
+#  SMOWL PROCTORING - Variables de entorno
+# ============================================
+# Copia este archivo como .env y completa tus credenciales reales.
+# NUNCA subas .env a Git (ya está en .gitignore)
+
+# --- API Key / Secret ---
+VITE_SMOWL_API_KEY=tu_api_key_aqui
+VITE_SMOWL_API_SECRET=tu_api_secret_aqui
+
+# --- LTI Credentials ---
+VITE_SMOWL_LTI_CLIENT_ID=tu_lti_client_id_aqui
+VITE_SMOWL_LTI_SECRET=tu_lti_secret_aqui
+
+# --- Identificador de tu institución en mySmowltech ---
+VITE_SMOWL_ENTITY_ID=tu_entity_id_aqui
+
+# --- URL base de la API SMOWL ---
+# En desarrollo usa el proxy de Vite: /api/smowl
+# En producción apunta directo: https://app.mysmowltech.com
+VITE_SMOWL_BASE_URL=/api/smowl
+
+# --- Nombre de tu aplicación (aparece en SMOWL como plataforma) ---
+VITE_APP_NAME=Mi App de Examenes
+ 
+================================ 
+.env SOLO NOMBRES SIN VALORES 
+================================ 
+# =***OCULTO***
+#  SMOWL PROCTORING - Variables de entorno=***OCULTO***
+#  Entidad: COCORUNIAMERICANA=***OCULTO***
+# =***OCULTO***
+# --- Entidad / Plataforma ---=***OCULTO***
+VITE_SMOWL_ENTITY_ID=***OCULTO***
+# --- Clave de licencia ---=***OCULTO***
+VITE_SMOWL_LICENSE_KEY=***OCULTO***
+# --- API Key ---=***OCULTO***
+VITE_SMOWL_API_KEY=***OCULTO***
+# --- Clave secreta JWT (para firmar tokens) ---=***OCULTO***
+VITE_SMOWL_JWT_SECRET=***OCULTO***
+# --- URL base API SMOWL ---=***OCULTO***
+# Proxy de Vite en desarrollo (evita CORS)=***OCULTO***
+VITE_SMOWL_BASE_URL=***OCULTO***
+# --- Nombre de la app ---=***OCULTO***
+VITE_APP_NAME=***OCULTO***

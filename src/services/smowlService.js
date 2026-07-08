@@ -1,73 +1,147 @@
-// smowlService.js — Integración SMOWL COCORUNIAMERICANA
-// Flujo real: JWT { data:{...}, iat } → auth.smowltech.net → credenciales AWS
+// src/services/smowlService.js
 
-export const AUTH_ENDPOINT    = 'https://auth.smowltech.net/v1/credentials'
 export const MONITOR_ENDPOINT = 'https://swl.smowltech.net/monitor/'
 
-export const ENTITY_NAME = 'COCORUNIAMERICANA'
-export const ENTITY_ID   = 3300
-export const LICENSE_KEY = '145af9ce639e7c3dcf93d6fbdabc5a249313778d'
-export const API_KEY     = '3ca32db2e6286ecbbc8a4ba6f4fb28c85d1c0f47'
-export const JWT_SECRET  = 'e011ef5bbb32387742c4c1b1189011231c72d7d4'
-export const DEFAULT_MODALITY_ID = 8844
+export const ENTITY_NAME = import.meta.env.VITE_SMOWL_ENTITY_NAME || 'COCORUNIAMERICANA'
+export const ENTITY_KEY = import.meta.env.VITE_SMOWL_LICENSE_KEY
+export const JWT_SECRET = import.meta.env.VITE_SMOWL_JWT_SECRET
+
+export const SMOWL_ISS = import.meta.env.VITE_SMOWL_ISS || 'smowl_moodle_plugin'
+export const SMOWL_AUD = import.meta.env.VITE_SMOWL_AUD || 'evapresencial.americana.edu.co'
+export const TOKEN_TTL_SECONDS = Number(import.meta.env.VITE_SMOWL_TOKEN_TTL_SECONDS || 43200)
+
+export const API_KEY = import.meta.env.VITE_SMOWL_API_KEY
+
+function required(value, name) {
+  if (!value) {
+    throw new Error(`Falta configurar ${name} en el archivo .env`)
+  }
+
+  return value
+}
 
 function b64url(str) {
   return btoa(
     Array.from(new TextEncoder().encode(str))
-      .map(b => String.fromCharCode(b))
+      .map((b) => String.fromCharCode(b))
       .join('')
-  ).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+  )
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '')
 }
 
 function b64urlBytes(bytes) {
   return btoa(String.fromCharCode(...bytes))
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '')
 }
 
 export async function signJWT(payload) {
-  const header  = { typ: 'JWT', alg: 'HS256' }
+  const secret = required(JWT_SECRET, 'VITE_SMOWL_JWT_SECRET')
+
+  const header = {
+    typ: 'JWT',
+    alg: 'HS256',
+  }
+
   const message = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}`
+
   const key = await crypto.subtle.importKey(
     'raw',
-    new TextEncoder().encode(JWT_SECRET),
+    new TextEncoder().encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign']
   )
-  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message))
-  return `${message}.${b64urlBytes(new Uint8Array(sig))}`
+
+  const signature = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    new TextEncoder().encode(message)
+  )
+
+  return `${message}.${b64urlBytes(new Uint8Array(signature))}`
 }
 
-export async function buildAuthToken({ userId, activityId, activityType, idModality }) {
+export async function buildMonitorToken({
+  activityType = 'quiz',
+  activityModule,
+  activityContainerId,
+  userId,
+  activityId,
+  isMonitoring = '0',
+}) {
+  const entityKey = required(ENTITY_KEY, 'VITE_SMOWL_LICENSE_KEY')
+
+  const now = Math.floor(Date.now() / 1000)
+
   return signJWT({
+    iss: SMOWL_ISS,
+    aud: SMOWL_AUD,
+    iat: now,
+    exp: now + TOKEN_TTL_SECONDS,
     data: {
-      userId:        String(userId),
-      activityId:    String(activityId),
-      activityType:  String(activityType),
-      entityId:      ENTITY_ID,
-      swlLicenseKey: LICENSE_KEY,
-      entityName:    ENTITY_NAME,
-      idModality:    idModality || DEFAULT_MODALITY_ID,
+      entityKey,
+      activityType: String(activityType),
+      activityModule: String(activityModule),
+      activityContainerId: String(activityContainerId),
+      userId: String(userId),
+      activityId: String(activityId),
+      isMonitoring: String(isMonitoring),
     },
-    iat: Math.floor(Date.now() / 1000),
   })
 }
 
-export async function getCredentials(params) {
-  const token = await buildAuthToken(params)
-  const url = `${AUTH_ENDPOINT}?entityName=${encodeURIComponent(ENTITY_NAME)}`
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: { 'Authorization': `Bearer ${token}`, 'Accept': '*/*' },
+export async function buildMonitorUrl({
+  userName,
+  userEmail,
+  activityUrl,
+  lang = 'es',
+  type = '3',
+
+  activityType = 'quiz',
+  activityModule,
+  activityContainerId,
+  userId,
+  activityId,
+  isMonitoring = '0',
+}) {
+  const token = await buildMonitorToken({
+    activityType,
+    activityModule,
+    activityContainerId,
+    userId,
+    activityId,
+    isMonitoring,
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: res.statusText }))
-    throw new Error(`Auth SMOWL (${res.status}): ${err.message || 'error'}`)
-  }
-  return res.json()
+
+  const params = new URLSearchParams({
+    token,
+    entityName: ENTITY_NAME,
+    lang,
+    type: String(type),
+    userName: String(userName),
+    userEmail: String(userEmail),
+    activityUrl: String(activityUrl),
+  })
+
+  return `${MONITOR_ENDPOINT}?${params.toString()}`
 }
 
-export async function buildMonitorUrl(params) {
-  const token = await buildAuthToken(params)
-  return `${MONITOR_ENDPOINT}?token=${token}&entityName=${encodeURIComponent(ENTITY_NAME)}`
+// Estas dos funciones son necesarias porque SmowlReports.jsx las importa.
+export function buildANamesJson(users = []) {
+  return users.map((user) => ({
+    id: String(user.id),
+    name: String(user.name),
+  }))
+}
+
+export function buildActivitiesJson(activities = []) {
+  return activities.map((activity) => ({
+    displayName: String(activity.displayName),
+    activityId: String(activity.activityId),
+    activityType: String(activity.activityType || 'quiz'),
+  }))
 }

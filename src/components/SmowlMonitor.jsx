@@ -61,7 +61,7 @@ export default function SmowlMonitor({ src, onStatusOK, onStatusNOTOK, isPreview
       <iframe
         ref={iframeRef}
         src={src}
-        allow="microphone; camera"
+        allow="camera; microphone; fullscreen"
         sandbox="allow-top-navigation allow-scripts allow-modals allow-same-origin allow-popups allow-downloads allow-popups-to-escape-sandbox"
         width="220"
         height="300"

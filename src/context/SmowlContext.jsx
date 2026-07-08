@@ -1,33 +1,58 @@
 import React, { createContext, useContext, useState, useCallback } from 'react'
-import { getCredentials, buildMonitorUrl } from '../services/smowlService'
+import { buildMonitorUrl } from '../services/smowlService'
 
 const SmowlContext = createContext(null)
 
 export function SmowlProvider({ children }) {
-  const [credentials,  setCredentials]  = useState(null)
-  const [monitorUrl,   setMonitorUrl]   = useState(null)
-  const [hexUserId,    setHexUserId]    = useState(null)
+  const [previewUrl, setPreviewUrl] = useState(null)
+  const [monitoringUrl, setMonitoringUrl] = useState(null)
+  const [registrationUrl, setRegistrationUrl] = useState(null)
+
   const [monitoringOK, setMonitoringOK] = useState(false)
-  const [loading,      setLoading]      = useState(false)
-  const [error,        setError]        = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
 
   const prepareExam = useCallback(async (exam, user) => {
     setLoading(true)
     setError(null)
     setMonitoringOK(false)
+    setPreviewUrl(null)
+    setMonitoringUrl(null)
+    setRegistrationUrl(null)
+
     try {
-      const params = {
-        userId:       user.id,
-        activityId:   exam.id,
+      const activityUrl = window.location.href
+
+      const commonParams = {
+        userId: user.id,
+        userName: user.name,
+        userEmail: user.email,
+
         activityType: exam.type || 'quiz',
-        idModality:   exam.idModality,
+        activityId: exam.id,
+
+        activityModule: exam.activityModule || exam.id,
+        activityContainerId: exam.activityContainerId || exam.courseId || exam.id,
+
+        activityUrl,
+        lang: 'es',
+        type: '3',
       }
-      const creds = await getCredentials(params)
-      setCredentials(creds.credentials)
-      setHexUserId(creds.hexUserId)
-      const url = await buildMonitorUrl(params)
-      setMonitorUrl(url)
+
+      const preview = await buildMonitorUrl({
+        ...commonParams,
+        isMonitoring: '0',
+      })
+
+      const active = await buildMonitorUrl({
+        ...commonParams,
+        isMonitoring: '1',
+      })
+
+      setPreviewUrl(preview)
+      setMonitoringUrl(active)
     } catch (err) {
+      console.error('Error preparando SMOWL:', err)
       setError(err.message)
     } finally {
       setLoading(false)
@@ -35,19 +60,27 @@ export function SmowlProvider({ children }) {
   }, [])
 
   const reset = useCallback(() => {
-    setCredentials(null)
-    setMonitorUrl(null)
-    setHexUserId(null)
+    setPreviewUrl(null)
+    setMonitoringUrl(null)
+    setRegistrationUrl(null)
     setMonitoringOK(false)
     setError(null)
   }, [])
 
   return (
-    <SmowlContext.Provider value={{
-      credentials, monitorUrl, hexUserId,
-      monitoringOK, setMonitoringOK,
-      loading, error, prepareExam, reset,
-    }}>
+    <SmowlContext.Provider
+      value={{
+        previewUrl,
+        monitoringUrl,
+        registrationUrl,
+        monitoringOK,
+        setMonitoringOK,
+        loading,
+        error,
+        prepareExam,
+        reset,
+      }}
+    >
       {children}
     </SmowlContext.Provider>
   )
