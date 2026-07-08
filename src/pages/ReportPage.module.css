@@ -1,0 +1,56 @@
+.page { min-height: 100vh; background: var(--color-bg); display: flex; flex-direction: column; }
+
+.header {
+  background: var(--color-navy); color: #fff;
+  padding: 0.85rem 2rem; display: flex; align-items: center; justify-content: space-between;
+}
+.headerLeft { display: flex; align-items: center; gap: 1rem; }
+.logo   { font-family: var(--font-display); font-weight: 700; font-size: 0.95rem; }
+.userChip { font-size: 0.78rem; color: rgba(255,255,255,0.55); }
+.logoutBtn {
+  background: rgba(255,255,255,0.12); color: #fff; border: none;
+  border-radius: var(--radius-sm); padding: 0.35rem 0.9rem; font-size: 0.85rem; transition: background 0.15s;
+}
+.logoutBtn:hover { background: rgba(255,255,255,0.22); }
+
+.content {
+  max-width: 960px; width: 100%; margin: 0 auto;
+  padding: 2rem 1.5rem 3rem; display: flex; flex-direction: column; gap: 1.25rem;
+  animation: fadeIn 0.4s ease;
+}
+
+.topRow { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.pageTitle { font-size: 1.6rem; color: var(--color-navy); margin-bottom: 0.25rem; }
+.pageDesc  { font-size: 0.88rem; color: var(--color-text-muted); }
+
+.newExamBtn {
+  background: var(--color-accent); color: #fff; border: none;
+  padding: 0.7rem 1.4rem; border-radius: var(--radius-md);
+  font-family: var(--font-display); font-size: 0.9rem; font-weight: 600;
+  white-space: nowrap; transition: background 0.15s;
+}
+.newExamBtn:hover { background: var(--color-accent-hover); }
+
+/* Tabs */
+.tabs { display: flex; gap: 0.5rem; border-bottom: 2px solid var(--color-border); padding-bottom: 0; }
+.tab {
+  background: none; border: none; padding: 0.65rem 1.1rem;
+  font-size: 0.9rem; font-weight: 500; color: var(--color-text-muted);
+  border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.15s, border-color 0.15s;
+  cursor: pointer;
+}
+.tab:hover { color: var(--color-accent); }
+.tabActive { color: var(--color-accent); border-bottom-color: var(--color-accent); font-weight: 600; }
+
+/* iframe area */
+.iframeWrapper { height: 580px; }
+
+.note {
+  font-size: 0.78rem; color: var(--color-text-muted); line-height: 1.6;
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); padding: 0.85rem 1rem;
+}
+.note code {
+  background: #F1F5F9; padding: 0.1rem 0.35rem;
+  border-radius: 3px; font-size: 0.73rem; color: var(--color-navy);
+}

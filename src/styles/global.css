@@ -1,0 +1,124 @@
+/* =============================================
+   SMOWL Proctoring App — Global Styles
+   Paleta: Azul profundo (#0F1F3D) + Blanco roto (#F7F8FC) + Acento (#2D6CDF) + Verde (#1DB87A)
+   Tipografía: Space Grotesk (display) + Inter (body)
+============================================= */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* Colores */
+  --color-bg:          #F7F8FC;
+  --color-surface:     #FFFFFF;
+  --color-navy:        #0F1F3D;
+  --color-navy-light:  #1A3260;
+  --color-accent:      #2D6CDF;
+  --color-accent-hover:#1F52B5;
+  --color-success:     #1DB87A;
+  --color-warning:     #F5A623;
+  --color-danger:      #E53E3E;
+  --color-text:        #1A202C;
+  --color-text-muted:  #718096;
+  --color-border:      #E2E8F0;
+  --color-overlay:     rgba(15, 31, 61, 0.6);
+
+  /* Tipografía */
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body:    'Inter', sans-serif;
+
+  /* Espaciado */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  /* Sombras */
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md:  0 4px 16px rgba(0,0,0,0.10);
+  --shadow-lg:  0 8px 32px rgba(0,0,0,0.14);
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-bg);
+  color: var(--color-text);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--color-accent-hover);
+}
+
+button {
+  cursor: pointer;
+  font-family: var(--font-body);
+}
+
+input, select, textarea {
+  font-family: var(--font-body);
+}
+
+/* ---- Utilidades globales ---- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ---- Scrollbar personalizada ---- */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-border);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-accent);
+  border-radius: 3px;
+}
+
+/* ---- Animaciones base ---- */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(45, 108, 223, 0.4); }
+  70%  { box-shadow: 0 0 0 12px rgba(45, 108, 223, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(45, 108, 223, 0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.35s ease forwards;
+}

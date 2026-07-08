@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Environment variables (NUNCA subir credenciales)
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+
+# Editor
+.vscode/
+.idea/
+*.swp
