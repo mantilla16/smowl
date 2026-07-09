@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import fs from 'fs'
 
 export default defineConfig({
+  base: '/smowl/',
   plugins: [react()],
   server: {
     port: 5173,

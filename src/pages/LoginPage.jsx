@@ -5,7 +5,7 @@ import styles from './LoginPage.module.css'
 
 // Usuarios de demo para facilitar pruebas
 const DEMO_USERS = [
-  { id: 'STU001', name: 'AnaGarciaLopez',    email: 'ana.garcia@americana.edu.co' },
+  { id: '17898', name: 'Alberto Mantilla',    email: 'mantillaalberto@americana.edu.co' },
   { id: 'STU002', name: 'CarlosMejiaTorres', email: 'carlos.mejia@americana.edu.co' },
   { id: 'STU003', name: 'ValentinaRuizMora', email: 'val.ruiz@americana.edu.co' },
 ]
