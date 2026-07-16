@@ -1,73 +1,61 @@
 /**
  * SmowlReports.jsx
- * ──────────────────────────────────────────────────────────────
- * Componente para los iframes de reportes de SMOWL.
- * Usa postMessage para autenticar (secciones 7 y 8 de la doc).
+ * Carga los informes de SMOWL (reports.smowltech.net) vía iframe + postMessage.
+ * Autenticación por swlAPIKey (NO usa JWT, a diferencia del widget de cámara).
  *
- * Dos modos:
- *   mode="registers" → Gestión de usuarios registrados (VAR10)
- *   mode="results"   → Informe de actividades (VAR10 + VAR13)
- * ──────────────────────────────────────────────────────────────
+ * Props:
+ *   mode: 'results'   -> informe de actividades (evidencias)   -> path /results
+ *         'registers' -> gestión de usuarios registrados        -> path /registers
+ *   users: [{ id, name }]  -> se convierte a aNames_json (VAR10)
+ *   activities: [{ displayName, activityId, activityType }] (VAR13, solo 'results')
  */
 
-import React, { useEffect, useRef, useState } from 'react'
-import {
-  ENTITY_NAME, API_KEY,
-  buildANamesJson, buildActivitiesJson,
-} from '../services/smowlService'
-import styles from './SmowlReports.module.css'
+import React, { useEffect, useRef } from 'react'
 
-const REPORTS_URL = 'https://reports.smowltech.net/auth/'
+const REPORTS_ENDPOINT = 'https://reports.smowltech.net/auth/'
+const ENTITY_NAME = 'COCORUNIAMERICANA'
+const SWL_API_KEY  = '3ca32db2e6286ecbbc8a4ba6f4fb28c85d1c0f47'
 
-/**
- * @param {object}  props
- * @param {'registers'|'results'} props.mode
- * @param {Array}   props.users       [{ id, name }]
- * @param {Array}   [props.activities] [{ displayName, activityId, activityType }]
- */
-export default function SmowlReports({ mode = 'registers', users = [], activities = [] }) {
+export default function SmowlReports({ mode = 'results', users = [], activities = [] }) {
   const iframeRef = useRef(null)
-  const [loaded, setLoaded] = useState(false)
 
-  // Enviar postMessage cuando el iframe cargue (doc sección 7 y 8)
   useEffect(() => {
-    if (!loaded || !iframeRef.current) return
+    const iframe = iframeRef.current
+    if (!iframe) return
 
-    const message = {
-      type:        'postAuthData',
-      entityName:  ENTITY_NAME,
-      apiKey:      API_KEY,
-      origin:      'lti',
-      courseUsers: buildANamesJson(users),
-      lang:        'es',
-      path:        mode === 'registers' ? '/registers' : '/results',
+    const sendData = () => {
+      // users [{id,name}] -> { "id": "name", ... }  (aNames_json / VAR10)
+      const courseUsers = {}
+      users.forEach(u => { courseUsers[u.id] = u.name })
+
+      const payload = {
+        type: 'postAuthData',
+        entityName: ENTITY_NAME,
+        apiKey: SWL_API_KEY,
+        origin: 'lti',
+        courseUsers: JSON.stringify(courseUsers),
+        lang: 'es',
+        path: mode === 'registers' ? '/registers' : '/results',
+      }
+
+      if (mode === 'results') {
+        payload.activities = JSON.stringify(activities)
+      }
+
+      iframe.contentWindow.postMessage(payload, REPORTS_ENDPOINT)
     }
 
-    // Solo en modo "results" se envía la lista de actividades
-    if (mode === 'results') {
-      message.activities = buildActivitiesJson(activities)
-    }
-
-    setTimeout(() => {
-      iframeRef.current?.contentWindow?.postMessage(message, REPORTS_URL)
-    }, 500)
-  }, [loaded, mode, users, activities])
+    const onLoad = () => setTimeout(sendData, 500)
+    iframe.addEventListener('load', onLoad)
+    return () => iframe.removeEventListener('load', onLoad)
+  }, [mode, users, activities])
 
   return (
-    <div className={styles.wrapper}>
-      {!loaded && (
-        <div className={styles.loading}>
-          <div className={styles.spinner} />
-          <span>Cargando reporte SMOWL…</span>
-        </div>
-      )}
-      <iframe
-        ref={iframeRef}
-        src={REPORTS_URL}
-        style={{ width: '100%', height: '100%', border: 'none', opacity: loaded ? 1 : 0 }}
-        title={mode === 'registers' ? 'SMOWL Gestión de usuarios' : 'SMOWL Informe de actividades'}
-        onLoad={() => setLoaded(true)}
-      />
-    </div>
+    <iframe
+      ref={iframeRef}
+      src={REPORTS_ENDPOINT}
+      title="SMOWL Reports"
+      style={{ width: '100%', height: '100%', minHeight: '600px', border: 'none' }}
+    />
   )
 }

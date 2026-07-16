@@ -13,7 +13,7 @@ import styles from './ReportPage.module.css'
 
 // Actividades de demo para VAR13
 const DEMO_ACTIVITIES = [
-  { displayName: 'Evaluación de Prueba SMOWL', activityId: 'EXAM-DEMO-001', activityType: 'quiz' },
+  { displayName: 'Evaluación de Prueba SMOWL', activityId: '32422', activityType: 'quiz' },
 ]
 
 export default function ReportPage() {
